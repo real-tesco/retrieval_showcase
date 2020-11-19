@@ -48,7 +48,7 @@ snippets = st.sidebar.checkbox("Show snippets of documents", value=True)
 retriever = None
 if l_retriever == "BM25":
     if l_dataset == "MSMARCO Doc":
-        path_to_index = os.path.join(args.anserinik, "msmarco_anserini_document")
+        path_to_index = os.path.join(args.anserini, "msmarco_anserini_document")
     elif l_dataset == "MSMARCO Doc (passaged)":
         path_to_index = os.path.join(args.anserini, "msmarco_passaged_150_anserini")
     elif l_dataset == "Robust04":
