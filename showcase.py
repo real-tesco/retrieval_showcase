@@ -65,4 +65,4 @@ query = st.text_input("Query")
 
 hits = retriever.query(query)
 
-
+utils.show_query_results(hits, shortened=snippets, show_k=10)
