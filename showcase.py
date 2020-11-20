@@ -1,21 +1,20 @@
 #!/usr/bin/python3
 
 import streamlit as st
-import argparse
 import torch
+from utils.config import get_args
+import jnius
 
 import os
 os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-11-openjdk-amd64/"
 
-from models.twotowerbert import TwoTowerBertIndex
-from models.bm25 import BM25Retriever
+from models.retriever.knn_retriever import KnnIndex
+from models.ranker.bm25 import BM25Retriever
+from models.ranker.ffn_ranker import EmbeddingRanker
 import utils.utilities as utils
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-anserini', type=str, help="path to anserini index")
-parser.add_argument('-two_tower_checkpoint', type=str, help="path to checkpoint")
-parser.add_argument('-two_tower_base', type=str, default="bert-base-uncased")
-args = parser.parse_args()
+timer = utils.Timer()
+args = get_args()
 
 st.title("Information Retrieval Showcase")
 st.write("Showcase for different retriever and ranker architectures")
@@ -29,40 +28,60 @@ l_dataset = st.sidebar.selectbox("Select dataset",
 
 st.sidebar.subheader("Model")
 l_retriever = st.sidebar.selectbox("Select retriever",
-                                   ("BM25", "Two Tower Bert"))
+                                   ("BM25", "KNN - Two Tower Bert"))
+if l_retriever == "BM25":
+    ranker_possibilities = "none"
+elif l_retriever == "KNN - Two Tower Bert":
+    ranker_possibilities = ("FFN(3-layers)", "none")
 l_ranker = st.sidebar.selectbox("Select ranker",
-                                ("FFN(3-layers)", "ip", "none"))
+                                ranker_possibilities)
 
 st.sidebar.subheader("Compare Options")
 compare = st.sidebar.checkbox("Compare models")
 if compare:
     l_retriever2 = st.sidebar.selectbox("Select another retriever",
-                                        ("BM25", "Two Tower Bert"))
+                                        ("BM25", "KNN - Two Tower Bert"))
     l_ranker2 = st.sidebar.selectbox("Select another ranker",
-                                     ("FFN(3-layers)", "ip", "none"))
+                                     ("FFN(3-layers)", "none"))
 st.sidebar.subheader("Other Options")
 
 snippets = st.sidebar.checkbox("Show snippets of documents", value=True)
 
 # Load selected models
 retriever = None
-if l_retriever == "BM25":
-    if l_dataset == "MSMARCO Doc":
-        path_to_index = os.path.join(args.anserini, "msmarco_anserini_document")
-    elif l_dataset == "MSMARCO Doc (passaged)":
-        path_to_index = os.path.join(args.anserini, "msmarco_passaged_150_anserini")
-    elif l_dataset == "Robust04":
-        path_to_index = os.path.join(args.anserini, "index-robust04-20191213")
-    retriever = BM25Retriever(path_to_index)
+path_to_index = None
+if l_dataset == "MSMARCO Doc":
+    path_to_index = os.path.join(args.anserini, "msmarco_anserini_document")
+elif l_dataset == "MSMARCO Doc (passaged)":
+    path_to_index = os.path.join(args.anserini, "msmarco_passaged_150_anserini")
+elif l_dataset == "Robust04":
+    path_to_index = os.path.join(args.anserini, "index-robust04-20191213")
 
-elif l_retriever == "Two Tower Bert":
-    retriever = TwoTowerBertIndex(args.two_tower_base)
+formatter = utils.SearchResultFormatter(path_to_index)
+
+if l_retriever == "BM25":
+    retriever = BM25Retriever(formatter, path_to_index)
+elif l_retriever == "KNN - Two Tower Bert":
+    retriever = KnnIndex(args, formatter)
     state_dict = torch.load(args.two_tower_checkpoint)
-    retriever.load_state_dict(state_dict)
+    retriever.load_model_state_dict(state_dict)
+
+ranker = None
+if l_ranker == "FFN(3-layers)":
+    ranker = EmbeddingRanker(args)
+    checkpoint = torch.load(args.ranker_checkpoint)
+    ranker.load_state_dict(checkpoint)
 
 # Query Input for freestyle exploring
 query = st.text_input("Query")
 
+timer.reset()
 hits = retriever.query(query)
+retriever_time = timer.time()
+
+timer.reset()
+if ranker is not None:
+    hits = utils.rerank(hits, ranker, formatter)
+reranker_time = timer.time()
 
 utils.show_query_results(hits, shortened=snippets, show_k=10)

@@ -9,16 +9,9 @@ from transformers import AutoConfig, AutoModel
 
 
 class TwoTowerBert(nn.Module):
-    def __init__(
-        self,
-        pretrained: str,
-        mode: str = 'cls',
-        task: str = 'ranking'
-    ) -> None:
+    def __init__(self, pretrained: str):
         super(TwoTowerBert, self).__init__()
         self._pretrained = pretrained
-        self._mode = mode
-        self._task = task
 
         self._config = AutoConfig.from_pretrained(self._pretrained)
         self._document_model = AutoModel.from_pretrained(self._pretrained, config=self._config)
@@ -40,11 +33,8 @@ class TwoTowerBert(nn.Module):
         #print(query[0].shape)  # [4, 64, 768]
         #print(query[1].shape)  # [4, 768]  #CLS token with linear layer and tanh activation
         query = query[0][:, 0, :]  # CLS Token
-        #query = F.normalize(query, p=2, dim=0)
 
         document = document[0][:, 0, :]
-        #document = F.normalize(document, p=2, dim=0)
-
 
         document = F.normalize(document, p=2, dim=1)
         query = F.normalize(query, p=2, dim=1)
