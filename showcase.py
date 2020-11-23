@@ -3,11 +3,12 @@
 import streamlit as st
 import torch
 from utils.config import get_args
-import jnius
+
 
 import os
 os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-11-openjdk-amd64/"
 
+import jnius
 from models.retriever.knn_retriever import KnnIndex
 from models.ranker.bm25 import BM25Retriever
 from models.ranker.ffn_ranker import EmbeddingRanker
