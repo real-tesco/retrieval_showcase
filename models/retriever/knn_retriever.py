@@ -3,7 +3,7 @@ import torch
 import logging
 from models.retriever.twotowerbert import TwoTowerBert
 from transformers import AutoTokenizer
-from utils.utilities import SearchResult
+from utils.utilities import SearchResultFormatter
 
 logger = logging.getLogger()
 
