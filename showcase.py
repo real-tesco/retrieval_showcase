@@ -4,9 +4,11 @@ import streamlit as st
 import torch
 from utils.config import get_args
 
+# TODO load all models once
 
 import os
-os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-11-openjdk-amd64/"
+import os
+#os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-11-openjdk-amd64/"
 
 #import jnius
 from models.retriever.knn_retriever import KnnIndex
@@ -31,11 +33,15 @@ st.sidebar.subheader("Model")
 l_retriever = st.sidebar.selectbox("Select retriever",
                                    ("BM25", "KNN - Two Tower Bert"))
 if l_retriever == "BM25":
-    ranker_possibilities = "none"
+    ranker_possibilities = None
 elif l_retriever == "KNN - Two Tower Bert":
     ranker_possibilities = ("FFN(3-layers)", "none")
-l_ranker = st.sidebar.selectbox("Select ranker",
-                                ranker_possibilities)
+
+if ranker_possibilities is not None:
+    l_ranker = st.sidebar.selectbox("Select ranker",
+                                    ranker_possibilities)
+else:
+    l_ranker = None
 
 st.sidebar.subheader("Compare Options")
 compare = st.sidebar.checkbox("Compare models")
@@ -47,6 +53,7 @@ if compare:
 st.sidebar.subheader("Other Options")
 
 snippets = st.sidebar.checkbox("Show snippets of documents", value=True)
+top_k = st.sidebar.number_input("How many documents to consider", value=100, min_value=1, max_value=1000)
 
 # Load selected models
 retriever = None
@@ -64,8 +71,6 @@ if l_retriever == "BM25":
     retriever = BM25Retriever(formatter, path_to_index)
 elif l_retriever == "KNN - Two Tower Bert":
     retriever = KnnIndex(args, formatter)
-    state_dict = torch.load(args.two_tower_checkpoint)
-    retriever.load_model_state_dict(state_dict)
 
 ranker = None
 if l_ranker == "FFN(3-layers)":
@@ -74,11 +79,12 @@ if l_ranker == "FFN(3-layers)":
     ranker.load_state_dict(checkpoint)
 
 # Query Input for freestyle exploring
-query = st.text_input("Query")
+query = st.text_input("Query", value='')
 
 timer.reset()
-hits = retriever.query(query)
+hits = list(retriever.query(query)[1])
 retriever_time = timer.time()
+st.write(f"{retriever_time}s needed for current query to find {len(hits)} result")
 
 timer.reset()
 if ranker is not None:

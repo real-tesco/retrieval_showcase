@@ -10,5 +10,5 @@ class BM25Retriever:
 
     def query(self, query_text):
         hits = self._searcher.search(query_text)
-        result = self._formatter(hits)
+        result = self._formatter.pyserini_search_result(hits, query_text)
         return result
