@@ -4,6 +4,8 @@ import time
 from models.retriever.knn_retriever import KnnIndex
 import logging
 import torch
+import re
+
 logger = logging.getLogger()
 
 
@@ -33,20 +35,23 @@ def load_index_file(index):
     return index
 
 
-def format_retrieved_doc(search_result, shortened):
+def format_retrieved_doc(rank, search_result, shortened):
     if shortened:
         length = min(1000, len(search_result[1]))
     else:
         length = len(search_result[1])
+    pattern = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|$'
+    source_link = re.findall(pattern, search_result[1][:length])[0]
+    return '<br/><div style="font-family: Times New Roman; font-size: 19px;''padding-bottom:12px"><b>Rank: ' + \
+           str(rank) + ' Score: ' + str(search_result[2]) + '<br>Document: ' + search_result[0] + ' </b><br> ' \
+           + search_result[1][:length].replace(source_link, f"<a href="f"{source_link}"">Source</a>") + '</div>'
 
-    return '<br/><div style="font-family: Times New Roman; font-size: 20px;''padding-bottom:12px"><b>Score</b>: ' + \
-           str(search_result[2]) + '<br><b>Document: ' + search_result[0] + ' </b><br> ' + search_result[1][:length] + '</div>'
 
-
-def show_query_results(hits, shortened, show_k=2):
+def show_query_results(hits, shortened, col):
     """HTML print format for the searched query"""
-    for i, hit in enumerate(hits):
-        st.write(format_retrieved_doc(hit, shortened), unsafe_allow_html=True)
+    with col:
+        for i, hit in enumerate(hits):
+            st.write(format_retrieved_doc(i+1, hit, shortened), unsafe_allow_html=True)
 
 
 class SearchResultFormatter:
