@@ -1,11 +1,36 @@
 import streamlit as st
 from pyserini.search import SimpleSearcher
 import time
+from models.retriever.knn_retriever import KnnIndex
+import logging
+import torch
+logger = logging.getLogger()
 
 
-def rerank(hits, ranker, formatter):
-    # calculate new score for every hit and query
-    pass
+def rerank(q_embedding, doc_embeddings, hits, ranker):
+    device = torch.device('cpu')
+    scores = ranker.rerank_documents(q_embedding, doc_embeddings.squeeze(), device).tolist()
+    hits = [(hit[0], hit[1], score) for hit, score in zip(hits, scores)]
+    hits.sort(key=lambda tup: tup[2], reverse=True)
+    return hits
+
+
+@st.cache(allow_output_mutation=True)
+def load_knn_index(args):
+    logger.info("Cache miss: load_index_file() runs")
+    knn_index = KnnIndex(args)
+    checkpoint = torch.load(args.two_tower_checkpoint, map_location=torch.device('cpu'))
+    knn_index.load_state_dict(checkpoint)
+    knn_index.load_index_file()
+    return knn_index
+
+
+@st.cache
+def load_index_file(index):
+    logger.info("Cache miss: load_index_file() runs")
+    index.load_index_file()
+    logger.info("loading of index file finished.")
+    return index
 
 
 def format_retrieved_doc(search_result, shortened):
@@ -43,11 +68,14 @@ class SearchResultFormatter:
 
     def hnswlib_search_result(self, labels, distances, query_embedding, doc_embeddings):
         self.clear()
+        # since only one query at a time:
+        labels = labels[0]
+        distances = distances[0]
         for label, distance in zip(labels, distances):
             self._docids.append(label)
-            self._doc_scores.append(distance)
-            self._doc_content.append(self._index.doc(label))
-            self._doc_embeddings.append(self._index.doc(label))
+            self._doc_scores.append(1.0 - distance)
+            self._doc_content.append(self._index.doc(label).get('raw'))
+            #self._doc_embeddings.append(doc_embeddings)
         return query_embedding, zip(self._docids, self._doc_content, self._doc_scores), doc_embeddings
 
     def clear(self):

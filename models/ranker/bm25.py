@@ -2,13 +2,11 @@ from pyserini.search import SimpleSearcher
 
 
 class BM25Retriever:
-    def __init__(self, formatter, dataset):
-        self._formatter = formatter
+    def __init__(self, dataset):
         self._searcher = SimpleSearcher(dataset)
-        self._searcher.set_bm25(0.9, 0.4)
+        self._searcher.set_bm25(3.44, 0.87)
         self._searcher.set_rm3(10, 10, 0.5)
 
     def query(self, query_text):
         hits = self._searcher.search(query_text)
-        result = self._formatter.pyserini_search_result(hits, query_text)
-        return result
+        return hits, query_text
