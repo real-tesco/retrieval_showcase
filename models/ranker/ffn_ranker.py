@@ -2,11 +2,14 @@
 
 import torch
 import torch.nn as nn
+import logging
 
+logger = logging.getLogger()
 
-class EmbeddingRanker(nn.Module):
+class NeuralRanker(nn.Module):
     def __init__(self, args):
-        super(EmbeddingRanker, self).__init__()
+        super(NeuralRanker, self).__init__()
+        self.train = args.train
         self.input = nn.Linear(args.ranker_input, args.ranker_hidden)
 
         if args.extra_layer > 0:
@@ -24,11 +27,17 @@ class EmbeddingRanker(nn.Module):
     def forward(self, inputs):
         x = self.input(inputs)
         x = self.activation(x)
+        if self.train:
+            x = self.dropout(x)
         if self.extra_hidden is not None:
             x = self.extra_hidden(x)
             x = self.activation(x)
+        #x = self.batchnorm1(x)
         x = self.h1(x)
         x = self.activation(x)
+        #x = self.batchnorm2(x)
+        if self.train:
+            x = self.dropout(x)
         x = self.output(x)
         # x = torch.sigmoid(x)
         return x
@@ -45,3 +54,11 @@ class EmbeddingRanker(nn.Module):
             return scores_positive, scores_negative
 
         return scores_positive
+
+    def rerank_documents(self, query, documents, device):
+        # per query K documents need to be reranked
+        inputs = query * documents
+        scores = self.forward(inputs).squeeze()
+        return scores
+
+
