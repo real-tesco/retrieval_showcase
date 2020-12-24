@@ -89,8 +89,9 @@ def main(args, retrievers, rankers, formatter_dict):
 
     right_col = None
     if compare:
-        left_col, right_col = st.beta_columns(2)
         st.write("Compare Rankers")
+        left_col, right_col = st.beta_columns(2)
+
         ranker2 = None
         if l_ranker2 == "EmbeddingRanker":
             ranker2 = rankers[l_ranker2]
@@ -122,7 +123,7 @@ def main(args, retrievers, rankers, formatter_dict):
             timer.reset()
             hits = utils.rerank(q_embedding, doc_embeddings, hits, ranker)
             reranker_time = timer.time()
-            st.write(f"Rerank: {reranker_time:.4f}")
+            st.write(f"Rerank: {reranker_time:.4f} seconds")
         utils.show_query_results(hits, snippets, left_col)
 
     if right_col is not None:
