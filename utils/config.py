@@ -8,6 +8,12 @@ def get_args():
     parser.add_argument('-index_file', type=str, help='path to hnswlib index')
     parser.add_argument('-index_mapping', type=str, help='path to hnswlib index')
     parser.add_argument('-ranker_checkpoint', type=str, help='checkpoint file for ranker')
+    parser.add_argument('-neural_reformulator_checkpoint', type=str, help='checkpoint file for reformulator')
+    parser.add_argument('-transformer_h4_l1_checkpoint', type=str, help='checkpoint file for transformer1')
+    parser.add_argument('-transformer_h6_l4_checkpoint', type=str, help='checkpoint file for transformer2')
+    parser.add_argument('-transformer_h6_l6_checkpoint', type=str, help='checkpoint file for transformer3')
+    parser.add_argument('-weighted_avg_checkpoint', type=str, help='checkpoint file for weighted avg reformulator')
+
 
     parser.add_argument('-two_tower_base', type=str, default="bert-base-uncased")
     parser.add_argument('-similarity', type=str, default="ip")
@@ -23,4 +29,6 @@ def get_args():
                                   "index-robust04-20191213"]
     args.possible_knn_indexes = ["TwoTowerKNN"]
     args.possible_rankers = ["None", "EmbeddingRanker"]
+    args.possible_reformulators = ['Neural (h2500_top5)', 'Transformer (top10_h4_l1)',    # 'Transformer(top10_h6_l4)',
+                                   'Transformer (top10_h6_l4)', 'Weighted Avg Top10']
     return args

@@ -12,10 +12,21 @@ logger = logging.getLogger()
 def rerank(q_embedding, doc_embeddings, hits, ranker):
     device = torch.device('cpu')
     scores = ranker.rerank_documents(q_embedding, doc_embeddings.squeeze(), device).tolist()
-    hits = [(hit[0], hit[1], score) for hit, score in zip(hits, scores)]
+    hits = [(hit[0], hit[1], score, doc_embed) for hit, score, doc_embed in zip(hits, scores, doc_embeddings)]
     hits.sort(key=lambda tup: tup[2], reverse=True)
     return hits
 
+
+def reformulate(q_embedding, hits, reformulator, reformulator_type):
+    doc_embeddings = torch.tensor([hit[3].tolist() for hit in hits])
+    if reformulator_type.split(" ")[0] == "Transformer":
+        new_query = reformulator(q_embedding, doc_embeddings)
+    elif reformulator_type.split(" ")[0] == 'Neural':
+        new_query = reformulator(q_embedding, doc_embeddings)
+    elif reformulator_type.split(" ")[0] == "Weighted":
+        scores = torch.tensor([hit[2] for hit in hits])
+        new_query = reformulator(doc_embeddings, scores)
+    return new_query
 
 @st.cache(allow_output_mutation=True)
 def load_knn_index(args):

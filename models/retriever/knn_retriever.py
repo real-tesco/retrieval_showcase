@@ -37,6 +37,14 @@ class KnnIndex:
         instances = torch.tensor(instances)
         return document_labels, distances.tolist(), query_embedding, instances
 
+    def query_embedded(self, query_embedding, k=100):
+        labels, distances = self._index.knn_query(query_embedding.detach().numpy(), k=k)
+        document_labels = [[self._indexid2docid[labels[j][i]] for i in range(len(labels[j]))] for j in
+                           range(len(labels))]
+        instances = self._index.get_items(labels[0])
+        instances = torch.tensor(instances)
+        return document_labels, distances.tolist(), query_embedding, instances
+
     def pack_bert_features(self, tokens):
         input_tokens = [self._tokenizer.cls_token] + tokens + [self._tokenizer.sep_token]
         input_ids = self._tokenizer.convert_tokens_to_ids(input_tokens)

@@ -10,6 +10,7 @@ from utils.config import get_args
 from models.retriever.knn_retriever import KnnIndex
 from models.ranker.bm25 import BM25Retriever
 from models.ranker.ffn_ranker import NeuralRanker
+from models.reformulator.query_reformulation import NeuralReformulator, TransformerReformulator, QueryReformulator
 import utils.utilities as utils
 
 
@@ -17,7 +18,7 @@ timer = utils.Timer()
 logger = logging.getLogger()
 
 
-def main(args, retrievers, rankers, formatter_dict):
+def main(args, retrievers, rankers, reformulators, formatter_dict):
     st.title("Information Retrieval Showcase")
     st.write("Showcase for different retriever and ranker architectures")
 
@@ -33,10 +34,12 @@ def main(args, retrievers, rankers, formatter_dict):
     l_retriever = st.sidebar.selectbox("Select retriever",
                                        ["BM25", "KNN - Two Tower Bert"])
     ranker_possibilities = None
+    reformulator_possibilities = None
     if l_retriever == "BM25":
         ranker_possibilities = None
     elif l_retriever == "KNN - Two Tower Bert":
         ranker_possibilities = args.possible_rankers
+        reformulator_possibilities = ["None"] + args.possible_reformulators
 
     if ranker_possibilities is not None:
         l_ranker = st.sidebar.selectbox("Select ranker",
@@ -44,6 +47,11 @@ def main(args, retrievers, rankers, formatter_dict):
     else:
         l_ranker = None
 
+
+    if reformulator_possibilities is not None:
+        l_reformulator = st.sidebar.selectbox("Select Reformulator", tuple(reformulator_possibilities))
+    else:
+        l_reformulator = "None"
     st.sidebar.subheader("Compare Options")
     compare = st.sidebar.checkbox("Compare models")
     if compare:
@@ -53,7 +61,9 @@ def main(args, retrievers, rankers, formatter_dict):
             ranker_possibilities = tuple(["None"])
         elif l_retriever2 == "KNN - Two Tower Bert":
             ranker_possibilities = args.possible_rankers
+            reformulator_possibilities = ["None"] + args.possible_reformulators
         l_ranker2 = st.sidebar.selectbox("Select another ranker", tuple(ranker_possibilities))
+        l_reformulator2 = st.sidebar.selectbox("Select another reformulator", tuple(reformulator_possibilities))
     else:
         l_ranker2 = None
 
@@ -84,6 +94,10 @@ def main(args, retrievers, rankers, formatter_dict):
     if l_ranker == "EmbeddingRanker":
         ranker = rankers["EmbeddingRanker"]
 
+    reformulator = None
+    if l_reformulator != "None":
+        reformulator = reformulators[l_reformulator]
+
     # Query Input for freestyle exploring
     query = st.text_input("Query", value='the language of nature is math')
 
@@ -100,6 +114,9 @@ def main(args, retrievers, rankers, formatter_dict):
             retriever2 = retrievers[index_key]
         elif l_retriever2 == "KNN - Two Tower Bert":
             retriever2 = retrievers["TwoTowerKNN"]
+        reformulator2 = None
+        if l_reformulator2 != "None":
+            reformulator2 = reformulators[l_reformulator2]
 
     else:
         left_col = st.beta_columns(1)[0]
@@ -108,6 +125,7 @@ def main(args, retrievers, rankers, formatter_dict):
         timer.reset()
         st.markdown(f"#### Retriever: {l_retriever}")
         st.markdown(f"#### Ranker: {l_ranker}")
+        st.markdown(f"#### Reformulator: {l_reformulator}")
         st.markdown("____")
         if l_retriever == "BM25":
             hits, _ = retriever.query(query, k=top_k)
@@ -124,12 +142,17 @@ def main(args, retrievers, rankers, formatter_dict):
             hits = utils.rerank(q_embedding, doc_embeddings, hits, ranker)
             reranker_time = timer.time()
             st.write(f"Rerank: {reranker_time:.4f} seconds")
+            if l_reformulator != "None":
+                new_query = utils.reformulate(q_embedding, hits, reformulator, l_reformulator)
+                q_embedding, hits, doc_embeddings = formatter.hnswlib_search_result(*retriever.query_embedded(new_query, k=top_k))
+                hits = utils.rerank(q_embedding, doc_embeddings, hits, ranker)
         utils.show_query_results(hits, snippets, left_col)
 
     if right_col is not None:
         with right_col:
             st.write(f"#### Retriever: {l_retriever2}")
             st.write(f"#### Ranker: {l_ranker2}")
+            st.write(f"#### Reformulator: {l_reformulator2}")
             st.markdown("____")
             if l_retriever2 == "BM25":
                 hits, _ = retriever2.query(query)
@@ -146,6 +169,11 @@ def main(args, retrievers, rankers, formatter_dict):
                 hits = utils.rerank(q_embedding, doc_embeddings, hits, ranker2)
                 reranker_time = timer.time()
                 st.write(f"Rerank: {reranker_time:.4f} seconds")
+                if l_reformulator2 != "None":
+                    new_query = utils.reformulate(q_embedding, hits, reformulator2, l_reformulator2)
+                    q_embedding, hits, doc_embeddings = formatter.hnswlib_search_result(
+                        *retriever.query_embedded(new_query, k=top_k))
+                    hits = utils.rerank(q_embedding, doc_embeddings, hits, ranker2)
             utils.show_query_results(hits, snippets, right_col)
 
 
@@ -154,6 +182,7 @@ def load_models_on_start(args):
     logger.info("load_models_on_start cache miss")
     retrievers = {}
     rankers = {}
+    reformulators = {}
     formatters = {}
     # Load models here
     for index_type in args.possible_knn_indexes:
@@ -178,7 +207,30 @@ def load_models_on_start(args):
         elif ranker_type == "None":
             rankers["None"] = None
 
-    return retrievers, rankers, formatters
+    # Load Reformulator models
+    for name in args.possible_reformulators:
+        if name == 'Neural (h2500_top5)':
+            checkpoint = torch.load(args.neural_reformulator_checkpoint, map_location=torch.device('cpu'))
+            model = NeuralReformulator(top_k=5, embedding_size=768, hidden_size1=2500)
+            model.load_state_dict(checkpoint)
+            reformulators[name] = model
+        elif name == 'Transformer (top10_h4_l1)':
+            checkpoint = torch.load(args.transformer_h4_l1_checkpoint, map_location=torch.device('cpu'))
+            model = TransformerReformulator(topk=10, nhead=4, num_encoder_layers=1)
+            model.load_state_dict(checkpoint)
+            reformulators[name] = model
+        elif name == 'Transformer (top10_h6_l4)':
+            checkpoint = torch.load(args.transformer_h6_l4_checkpoint, map_location=torch.device('cpu'))
+            model = TransformerReformulator(topk=10, nhead=6, num_encoder_layers=4)
+            model.load_state_dict(checkpoint)
+            reformulators[name] = model
+        elif name == 'Weighted Avg Top10':
+            checkpoint = torch.load(args.weighted_avg_checkpoint, map_location=torch.device('cpu'))
+            model = QueryReformulator(mode='weighted_avg', topk=10)
+            model.layer.load_state_dict(checkpoint)
+            reformulators[name] = model
+
+    return retrievers, rankers, reformulators, formatters
 
 
 def set_width(max_width):
@@ -204,5 +256,5 @@ def set_width(max_width):
 
 if __name__ == '__main__':
     args = get_args()
-    retriever_models_dict, ranker_models_dict, formatter_dict = load_models_on_start(args)
-    main(args, retriever_models_dict, ranker_models_dict, formatter_dict)
+    retriever_models_dict, ranker_models_dict, reformulator_dict, formatter_dict = load_models_on_start(args)
+    main(args, retriever_models_dict, ranker_models_dict, reformulator_dict, formatter_dict)
