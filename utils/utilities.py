@@ -28,6 +28,7 @@ def reformulate(q_embedding, hits, reformulator, reformulator_type):
         new_query = reformulator(doc_embeddings, scores)
     return new_query
 
+
 @st.cache(allow_output_mutation=True)
 def load_knn_index(args):
     logger.info("Cache miss: load_index_file() runs")
@@ -46,23 +47,51 @@ def load_index_file(index):
     return index
 
 
-def format_retrieved_doc(rank, search_result, shortened):
+@st.cache(allow_output_mutation=True)
+def load_qrels(f_qrels, f_queries):
+    qrels = {}
+    with open(f_qrels, "r") as f:
+        for line in f:
+            qid, _, did, label = line.strip().split()
+            if int(label) > 0:
+                if qid in qrels:
+                    qrels[qid].append(did)
+                else:
+                    qrels[qid] = [did]
+    queries = {}
+    with open(f_queries, "r") as f:
+        for line in f:
+            qid, query = line.strip().split('\t')
+            if qid in qrels:
+                if qid not in queries:
+                    queries[qid] = query
+                else:
+                    continue
+    return qrels, queries
+
+
+def format_retrieved_doc(rank, search_result, shortened, relevant=False):
     if shortened:
         length = min(1000, len(search_result[1]))
     else:
         length = len(search_result[1])
     pattern = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|$'
     source_link = re.findall(pattern, search_result[1][:length])[0]
+    rel_label = '<span style="color:#ce2029; font-family: Times New Roman; font-size: 19px; padding-bottom:12px">' \
+                ' relevant to test query </span>' if relevant else ''
     return '<br/><div style="font-family: Times New Roman; font-size: 19px;''padding-bottom:12px"><b>Rank: ' + \
-           str(rank) + ' Score: ' + str(search_result[2]) + '<br>Document: ' + search_result[0] + ' </b><br> ' \
-           + search_result[1][:length].replace(source_link, f"<a href="f"{source_link}"">Source</a>") + '</div>'
+           str(rank) + ' Score: ' + str(search_result[2]) + '<br>Document: ' + search_result[0] + '</b>' +  \
+           rel_label + '<br> ' \
+           + search_result[1][:length].replace(source_link, f"<a href="f"{source_link}"">Source</a> ") + ' </div>'
 
 
-def show_query_results(hits, shortened, col):
+def show_query_results(hits, shortened, col, rel_doc_ids=None):
     """HTML print format for the searched query"""
     with col:
         for i, hit in enumerate(hits):
-            st.write(format_retrieved_doc(i+1, hit, shortened), unsafe_allow_html=True)
+
+            relevant = hit[0] in rel_doc_ids if rel_doc_ids is not None else None
+            st.write(format_retrieved_doc(i+1, hit, shortened, relevant), unsafe_allow_html=True)
 
 
 class SearchResultFormatter:

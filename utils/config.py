@@ -14,7 +14,8 @@ def get_args():
     parser.add_argument('-transformer_h6_l6_checkpoint', type=str, help='checkpoint file for transformer3')
     parser.add_argument('-weighted_avg_checkpoint', type=str, help='checkpoint file for weighted avg reformulator')
 
-
+    parser.add_argument('-qrels_msmarco_test', type=str, default="./data/2019qrels-docs.txt")
+    parser.add_argument('-queries_msmarco_test', type=str, default="./data/msmarco-test2019-queries.tsv")
     parser.add_argument('-two_tower_base', type=str, default="bert-base-uncased")
     parser.add_argument('-similarity', type=str, default="ip")
     parser.add_argument('-dim_hidden', type=int, default=768)

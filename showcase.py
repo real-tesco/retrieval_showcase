@@ -64,6 +64,7 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
             reformulator_possibilities = ["None"] + args.possible_reformulators
         l_ranker2 = st.sidebar.selectbox("Select another ranker", tuple(ranker_possibilities))
         l_reformulator2 = st.sidebar.selectbox("Select another reformulator", tuple(reformulator_possibilities))
+        order_by_id = st.sidebar.checkbox("Order second ranker by doc id")
     else:
         l_ranker2 = None
 
@@ -73,10 +74,13 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
     top_k = st.sidebar.number_input("How many documents to consider", value=100, min_value=1, max_value=1000)
     set_width(st.sidebar.slider("width", min_value=250, max_value=2000, value=1500))
 
-    # Load selected models
+    # Load selected models and data
+    qrels = None
+    queries = None
     index_key = None
     if l_dataset == "MSMARCO Doc":
         index_key = "msmarco_anserini_document"
+        qrels, queries = utils.load_qrels(args.qrels_msmarco_test, args.queries_msmarco_test)
     elif l_dataset == "MSMARCO Doc (passaged)":
         index_key = "msmarco_passaged_150_anserini"
     elif l_dataset == "Robust04":
@@ -100,6 +104,14 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
 
     # Query Input for freestyle exploring
     query = st.text_input("Query", value='the language of nature is math')
+    test_queries = [(k, v) for k, v in queries.items()]
+    test_queries.insert(0, ("-1", "not used"))
+    test_qid, test_q = st.selectbox('select test query', tuple(test_queries))
+
+    relevant_doc_ids = None
+    if test_qid != "-1":
+        query = test_q
+        relevant_doc_ids = qrels[test_qid]
 
     right_col = None
     if compare:
@@ -146,7 +158,7 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
                 new_query = utils.reformulate(q_embedding, hits, reformulator, l_reformulator)
                 q_embedding, hits, doc_embeddings = formatter.hnswlib_search_result(*retriever.query_embedded(new_query, k=top_k))
                 hits = utils.rerank(q_embedding, doc_embeddings, hits, ranker)
-        utils.show_query_results(hits, snippets, left_col)
+        utils.show_query_results(hits, snippets, left_col, relevant_doc_ids)
 
     if right_col is not None:
         with right_col:
@@ -155,26 +167,30 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
             st.write(f"#### Reformulator: {l_reformulator2}")
             st.markdown("____")
             if l_retriever2 == "BM25":
-                hits, _ = retriever2.query(query)
-                hits = formatter.pyserini_search_result(hits, query)[1]
+                hits2, _ = retriever2.query(query)
+                hits2 = formatter.pyserini_search_result(hits2, query)[1]
             elif l_retriever2 == "KNN - Two Tower Bert":
-                q_embedding, hits, doc_embeddings = formatter.hnswlib_search_result(*retriever2.query(query, k=top_k))
-            hits = list(hits)
+                q_embedding, hits2, doc_embeddings = formatter.hnswlib_search_result(*retriever2.query(query, k=top_k))
+            hits2 = list(hits2)
             retriever_time = timer.time()
 
-            st.write(f"Retrieve: {len(hits)} documents ({retriever_time:.4f} seconds)")
+            st.write(f"Retrieve: {len(hits2)} documents ({retriever_time:.4f} seconds)")
 
             if l_ranker2 == "EmbeddingRanker" and l_retriever2 == "KNN - Two Tower Bert":
                 timer.reset()
-                hits = utils.rerank(q_embedding, doc_embeddings, hits, ranker2)
+                hits2 = utils.rerank(q_embedding, doc_embeddings, hits2, ranker2)
                 reranker_time = timer.time()
                 st.write(f"Rerank: {reranker_time:.4f} seconds")
                 if l_reformulator2 != "None":
-                    new_query = utils.reformulate(q_embedding, hits, reformulator2, l_reformulator2)
-                    q_embedding, hits, doc_embeddings = formatter.hnswlib_search_result(
-                        *retriever.query_embedded(new_query, k=top_k))
-                    hits = utils.rerank(q_embedding, doc_embeddings, hits, ranker2)
-            utils.show_query_results(hits, snippets, right_col)
+                    new_query = utils.reformulate(q_embedding, hits2, reformulator2, l_reformulator2)
+                    q_embedding, hits2, doc_embeddings = formatter.hnswlib_search_result(
+                        *retriever2.query_embedded(new_query, k=top_k))
+                    hits2 = utils.rerank(q_embedding, doc_embeddings, hits2, ranker2)
+                if order_by_id:
+                    tmp_hits = []
+                    # TODO: sort by doc ids of the other ranker result
+                    # hits2 = tmp_hits
+            utils.show_query_results(hits2, snippets, right_col, relevant_doc_ids)
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={SimpleSearcher: id})
