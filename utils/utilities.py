@@ -73,6 +73,7 @@ def load_qrels(f_qrels, f_queries):
 def format_retrieved_doc(rank, search_result, shortened, relevant=False):
     if shortened:
         length = min(1000, len(search_result[1]))
+        # text_tag = '</TEXT>' if length != 1000 else ''
     else:
         length = len(search_result[1])
     pattern = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|$'
@@ -92,6 +93,13 @@ def show_query_results(hits, shortened, col, rel_doc_ids=None):
 
             relevant = hit[0] in rel_doc_ids if rel_doc_ids is not None else None
             st.write(format_retrieved_doc(i+1, hit, shortened, relevant), unsafe_allow_html=True)
+
+
+def print_doc(did, document_raw):
+    pattern = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|$'
+    source_link = re.findall(pattern, document_raw)[0]
+    return '<br/><div style="font-family: Times New Roman; font-size: 19px;''padding-bottom:12px"> <br>Document: ' + \
+        did + '<br>' + document_raw.replace(source_link, f"<a href="f"{source_link}"">Source</a> ") + ' </div>'
 
 
 class SearchResultFormatter:
@@ -122,6 +130,10 @@ class SearchResultFormatter:
             self._doc_content.append(self._index.doc(label).get('raw'))
             #self._doc_embeddings.append(doc_embeddings)
         return query_embedding, zip(self._docids, self._doc_content, self._doc_scores), doc_embeddings
+
+    def get_doc(self, did):
+        doc = self._index.doc(did)
+        return doc.raw()
 
     def clear(self):
         self._docids = []

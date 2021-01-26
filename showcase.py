@@ -47,7 +47,6 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
     else:
         l_ranker = None
 
-
     if reformulator_possibilities is not None:
         l_reformulator = st.sidebar.selectbox("Select Reformulator", tuple(reformulator_possibilities))
     else:
@@ -69,7 +68,7 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
         l_ranker2 = None
 
     st.sidebar.subheader("Other Options")
-
+    order_by_doc = st.sidebar.checkbox("Order second ranker by rank", value=True)
     snippets = st.sidebar.checkbox("Show snippets of documents", value=True)
     top_k = st.sidebar.number_input("How many documents to consider", value=100, min_value=1, max_value=1000)
     set_width(st.sidebar.slider("width", min_value=250, max_value=2000, value=1500))
@@ -108,6 +107,11 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
     test_queries.insert(0, ("-1", "not used"))
     test_qid, test_q = st.selectbox('select test query', tuple(test_queries))
 
+    with st.beta_expander("Search for did"):
+        input_did = st.text_input("Document ID", value='D2206089')
+        if l_retriever == "KNN - Two Tower Bert":
+            doc_raw = formatter.get_doc(input_did)
+            st.write(utils.print_doc(input_did, doc_raw), unsafe_allow_html=True)
     relevant_doc_ids = None
     if test_qid != "-1":
         query = test_q
@@ -193,7 +197,7 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
             utils.show_query_results(hits2, snippets, right_col, relevant_doc_ids)
 
 
-@st.cache(allow_output_mutation=True, hash_funcs={SimpleSearcher: id})
+@st.cache(allow_output_mutation=True, hash_funcs={SimpleSearcher: id, KnnIndex: id})
 def load_models_on_start(args):
     logger.info("load_models_on_start cache miss")
     retrievers = {}
@@ -207,8 +211,6 @@ def load_models_on_start(args):
             knn_index = utils.load_knn_index(args)
             logger.info("loaded full index")
             retrievers["TwoTowerKNN"] = knn_index
-
-    # need setting up of retrievers here since streamlit cannot hash SimpleSearcher
 
     for folder_name in args.possible_bm25_indexes:
         formatters[folder_name] = utils.SearchResultFormatter(os.path.join(args.base_folder_index, folder_name))

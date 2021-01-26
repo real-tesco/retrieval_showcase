@@ -67,3 +67,7 @@ class KnnIndex:
 
     def load_state_dict(self, state_dict):
         self._model.load_state_dict(state_dict)
+
+    def get_document(self, did):
+        did = [self._docid2indexid[did]]
+        return self._index.get_items(did)[0]
