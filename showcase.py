@@ -22,6 +22,8 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
     st.title("Information Retrieval Showcase")
     st.write("Showcase for different retriever and ranker architectures")
 
+    # TODO: set up dataset first, side bar generated per dataset, depending on model availability
+
     # Setting up sidebar with options for retriever, ranker, etc..
     st.sidebar.title("Settings")
 
@@ -51,6 +53,7 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
         l_reformulator = st.sidebar.selectbox("Select Reformulator", tuple(reformulator_possibilities))
     else:
         l_reformulator = "None"
+
     st.sidebar.subheader("Compare Options")
     compare = st.sidebar.checkbox("Compare models")
     if compare:
@@ -58,11 +61,13 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
                                             ("BM25", "KNN - Two Tower Bert"))
         if l_retriever2 == "BM25":
             ranker_possibilities = tuple(["None"])
+            reformulator_possibilities2 = tuple(["None"])
         elif l_retriever2 == "KNN - Two Tower Bert":
             ranker_possibilities = args.possible_rankers
-            reformulator_possibilities = ["None"] + args.possible_reformulators
+            reformulator_possibilities2 = ["None"] + args.possible_reformulators
+
+        l_reformulator2 = st.sidebar.selectbox("Select another reformulator", tuple(reformulator_possibilities2))
         l_ranker2 = st.sidebar.selectbox("Select another ranker", tuple(ranker_possibilities))
-        l_reformulator2 = st.sidebar.selectbox("Select another reformulator", tuple(reformulator_possibilities))
         order_by_id = st.sidebar.checkbox("Order second ranker by doc id")
     else:
         l_ranker2 = None
@@ -109,9 +114,8 @@ def main(args, retrievers, rankers, reformulators, formatter_dict):
 
     with st.beta_expander("Search for did"):
         input_did = st.text_input("Document ID", value='D2206089')
-        if l_retriever == "KNN - Two Tower Bert":
-            doc_raw = formatter.get_doc(input_did)
-            st.write(utils.print_doc(input_did, doc_raw), unsafe_allow_html=True)
+        doc_raw = formatter.get_doc(input_did)
+        st.write(utils.print_doc(input_did, doc_raw), unsafe_allow_html=True)
     relevant_doc_ids = None
     if test_qid != "-1":
         query = test_q
